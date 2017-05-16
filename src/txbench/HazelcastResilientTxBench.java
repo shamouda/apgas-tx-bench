@@ -4,6 +4,7 @@ import static apgas.Constructs.*;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Random;
+import java.util.concurrent.TimeUnit;
 
 import com.hazelcast.core.Hazelcast;
 import com.hazelcast.core.HazelcastInstance;
@@ -58,13 +59,13 @@ public class HazelcastResilientTxBench {
             // s= spare places
             int s = opts.get("s", 1);
 
-            // p = number of places creating transactions
+            // p= number of places creating transactions
             int p = opts.get("p", places().size() - s);
 
-            // r = range of possible keys
+            // r= range of possible keys
             long r = opts.get("r", 32 * 1024L);
 
-            // u = percentage of update operation
+            // u= percentage of update operation
             float u = opts.get("u", 0.0F);
 
             // n= number of benchmarking iterations
@@ -236,7 +237,8 @@ public class HazelcastResilientTxBench {
         ProducerThroughput myThroughput = localThroughput.thrds[producerId];
         long timeNS = myThroughput.elapsedTimeNS;
 
-        TransactionOptions options = new TransactionOptions().setTransactionType(TransactionType.TWO_PHASE);
+        TransactionOptions options = new TransactionOptions().setTransactionType(TransactionType.TWO_PHASE).setTimeout(1,
+                TimeUnit.SECONDS);
 
         // generate new transactions until the duration 'd' elapses
         while (timeNS < d * 1e6) {
