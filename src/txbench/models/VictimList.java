@@ -15,7 +15,7 @@ public class VictimList implements Serializable {
         placeKillTimes.put(place, time);
     }
     
-    public long getKillTime(int place) {
+    public long getKillTimeInSeconds(int place) {
         Long killTime = placeKillTimes.get(place);
         if (killTime == null || killTime == 0)
             return -1;

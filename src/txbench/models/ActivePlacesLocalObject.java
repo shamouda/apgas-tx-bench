@@ -32,7 +32,7 @@ public class ActivePlacesLocalObject extends PlaceLocalObject {
             logicalId = here().id;
             nextPlace = activePlaces.get((logicalId+1)%activePlaces.size()); 
         }
-        printActivePlaces();
+        //printActivePlaces();
     }
     
     public synchronized void replace(int deadLogicalId, Place spare) {
