@@ -14,6 +14,7 @@ import com.hazelcast.transaction.TransactionOptions.TransactionType;
 import com.hazelcast.transaction.TransactionalTaskContext;
 
 import apgas.Configuration;
+import apgas.DeadPlacesException;
 import apgas.GlobalRuntime;
 import apgas.Place;
 import apgas.util.GlobalRef;
@@ -27,7 +28,7 @@ import txbench.models.ParticipantOperations.KeyInfo;
 import txbench.models.PlaceThroughput;
 import txbench.models.ProducerThroughput;
 import txbench.models.RecoveryManager;
-import txbench.models.STMBenchFailed;
+import txbench.models.TxBenchFailed;
 import txbench.models.STMBenchParameters;
 import txbench.models.ThroughputCalculator;
 import txbench.models.Utils;
@@ -47,13 +48,8 @@ public class HazelcastResilientTxBench {
 
     public static void main(String[] args) {
         try {
-            if (System.getProperty(Configuration.APGAS_PLACES) == null) {
-                System.setProperty(Configuration.APGAS_PLACES, "5");
-            }
-            System.setProperty(Configuration.APGAS_THREADS, "2");
             boolean RESILIENT = System.getProperty(Configuration.APGAS_RESILIENT) != null
                     && System.getProperty(Configuration.APGAS_RESILIENT).equals("true");
-
             OptionsParser opts = new OptionsParser(args);
 
             // s= spare places
@@ -72,7 +68,10 @@ public class HazelcastResilientTxBench {
             int n = opts.get("n", 5);
 
             // t= number of threads creating transactions per place
-            int t = opts.get("t", 1 /*Integer.parseInt(System.getProperty(Configuration.APGAS_THREADS))*/);
+            int t = opts.get("t", 1 /*
+                                     * Integer.parseInt(System.getProperty(
+                                     * Configuration.APGAS_THREADS))
+                                     */);
 
             // w= warm up duration in milliseconds
             long w = opts.get("w", 5000L);
@@ -91,7 +90,12 @@ public class HazelcastResilientTxBench {
 
             // v= victims configurations in the form:
             // "place:iteration:time_seconds,place:iteration:time_seconds"
-            String victims = opts.get("v", "2:1:1,3:2:1,4:3:1");
+            String victims = opts.get("v", "2:1:1");
+
+            if (!victims.equals("") && !RESILIENT) {
+                throw new TxBenchFailed(
+                        "Wrong configurations, having victims requires setting -Dapgas.resilient=true");
+            }
 
             HashMap<Integer, VictimList> victimProfiles = Utils.parseVictims(victims);
 
@@ -107,10 +111,7 @@ public class HazelcastResilientTxBench {
 
             RecoveryManager recoveryManager = new RecoveryManager(localActivePlaces);
             if (!victims.equals("")) {
-                System.out.println();
-                System.setProperty(Configuration.APGAS_RESILIENT, "true");
-                RESILIENT = true;
-                GlobalRuntime.getRuntime().setPlaceFailureHandler(recoveryManager::reportPlaceFailure);
+                GlobalRuntime.getRuntime().setPlaceFailureHandler(recoveryManager::replaceDeadPlace);
             }
 
             new STMBenchParameters(p, t, r, u, n, w, d, h, o, g, s, victimProfiles).printRunConfigurations();
@@ -123,7 +124,7 @@ public class HazelcastResilientTxBench {
                 runIteration(RESILIENT, p, t, w, r, u, h, o, g, localThroughput, localActivePlaces, null, null);
                 resetStatistics(p, localThroughput);
                 System.out.println("warmup completed, warmup elapsed time ["
-                        + (System.currentTimeMillis() - startWarmup) + "]  ms ");
+                        + (System.currentTimeMillis() - startWarmup) + "]  ms \n");
             }
 
             for (int iter = 1; iter <= n; iter++) {
@@ -131,7 +132,7 @@ public class HazelcastResilientTxBench {
                 VictimList iterVictims = victimProfiles.get(iter);
                 runIteration(RESILIENT, p, t, d, r, u, h, o, g, localThroughput, localActivePlaces, iterVictims, null);
                 System.out.println("iteration:" + iter + " completed, iteration elapsedTime ["
-                        + (System.currentTimeMillis() - startIter) + "]  ms ");
+                        + (System.currentTimeMillis() - startIter) + "]  ms \n");
 
                 printThroughput(p, t, h, o, localThroughput, iter);
                 resetStatistics(p, localThroughput);
@@ -151,13 +152,20 @@ public class HazelcastResilientTxBench {
     public static void runIteration(boolean RESILIENT, int p, int t, long d, long r, float u, int h, int o, int g,
             PlaceThroughput localThroughput, ActivePlacesLocalObject localActivePlaces, VictimList victims,
             PlaceThroughput recoveryThroughput) {
-        finish(() -> {
-            for (int i = 0; i < p; i++) {
-                Place pl = places().get(i);
-                startPlaceAsync(RESILIENT, pl, p, t, d, r, u, h, o, g, localThroughput, localActivePlaces, victims,
-                        recoveryThroughput);
-            }
-        });
+        System.out.println("<<finish>> started to " + p + " places ...");
+        try {
+            finish(() -> {
+                for (int i = 0; i < p; i++) {
+                    Place pl = places().get(i);
+                    startPlaceAsync(RESILIENT, pl, p, t, d, r, u, h, o, g, localThroughput, localActivePlaces, victims,
+                            null);
+                }
+            });
+        } catch (DeadPlacesException dpe) {
+            if (!RESILIENT)
+                throw dpe;
+        }
+        System.out.println("<<finish>> completed ...");
     }
 
     /**
@@ -165,15 +173,18 @@ public class HazelcastResilientTxBench {
      * activity to kill this place at the proper time if it is a victim.
      */
     private static void startPlaceAsync(boolean RESILIENT, Place pl, int p, int t, long d, long r, float u, int h,
-            int o, int g, PlaceThroughput localThroughput, ActivePlacesLocalObject localActivePlaces, VictimList victims,
-            PlaceThroughput recoveryThroughput) {
+            int o, int g, PlaceThroughput localThroughput, ActivePlacesLocalObject localActivePlaces,
+            VictimList victims, ProducerThroughput[] oldThroughput) {
 
+        System.out.println("Start place " + pl);
         asyncAt(pl, () -> {
+            int logicalPlaceId = localActivePlaces.getLogicalId();
+            System.out.println("Starting place "  + here() );
             // If this place is replacing a dead place, initialize its
             // throughput values using the dead place's suicide note
-            if (recoveryThroughput != null) {
-                System.out.println(here() + " initializing the place throughput with " + recoveryThroughput);
-                localThroughput.reinit(recoveryThroughput);
+            if (oldThroughput != null) {                
+                localThroughput.reinit(logicalPlaceId, oldThroughput);
+                System.out.println(here() + " initializing the place throughput with " + localThroughput);
             }
 
             // create 't' asynchronous producers
@@ -191,7 +202,7 @@ public class HazelcastResilientTxBench {
                         long startedNS = System.nanoTime();
                         long deadline = System.currentTimeMillis() + 1000 * killTimeSec;
                         System.out.println(
-                                "Hammer kill timer at " + here() + " starting sleep for " + killTimeSec + " secs   deadlineMS " + deadline);
+                                "Hammer kill timer at " + here() + " starting sleep for " + killTimeSec + " secs");
                         while (deadline > System.currentTimeMillis()) {
                             long sleepTime = deadline - System.currentTimeMillis();
                             Thread.sleep(sleepTime);
@@ -203,7 +214,7 @@ public class HazelcastResilientTxBench {
                         myThroughput.setElapsedTime(System.nanoTime() - startedNS);
 
                         final ProducerThroughput[] victimThreads = myThroughput.thrds;
-                        final long victimLogicalId = myThroughput.virtualPlaceId;
+                        final long victimLogicalId = myThroughput.logicalPlaceId;
                         Place victim = here();
                         at(prev, () -> {
                             localThroughput.rightPlaceThroughput = new PlaceThroughput(victimLogicalId, victimThreads);
@@ -230,19 +241,18 @@ public class HazelcastResilientTxBench {
      * producer threads there.
      */
     public static void produce(boolean RESILIENT, int producerId, int p, int t, long d, long r, float u, int h, int o,
-            int g, PlaceThroughput localThroughput, ActivePlacesLocalObject localActivePlaces) throws STMBenchFailed {
+            int g, PlaceThroughput localThroughput, ActivePlacesLocalObject localActivePlaces) throws TxBenchFailed {
         HazelcastInstance hz = Hazelcast.getHazelcastInstanceByName("apgas");
         int logicalPlaceId = localActivePlaces.getLogicalId();
         Random rand = new Random((here().id + 1) * producerId);
         ProducerThroughput myThroughput = localThroughput.thrds[producerId];
         long timeNS = myThroughput.elapsedTimeNS;
 
-        TransactionOptions options = new TransactionOptions().setTransactionType(TransactionType.TWO_PHASE).setTimeout(1,
-                TimeUnit.SECONDS);
+        TransactionOptions options = new TransactionOptions().setTransactionType(TransactionType.TWO_PHASE)
+                .setTimeout(1, TimeUnit.SECONDS);
 
         // generate new transactions until the duration 'd' elapses
         while (timeNS < d * 1e6) {
-
             // generate random operations at random participants
             int[] participants = Utils.nextTransactionParticipants(rand, p, h, logicalPlaceId);
             ArrayList<ParticipantOperations> operations = Utils.nextRandomOperations(rand, p, participants, r, u, o);
@@ -253,7 +263,6 @@ public class HazelcastResilientTxBench {
             while (timeNS < d * 1e6) {
                 long start = System.nanoTime();
                 try {
-                    
                     hz.executeTransaction(options, (TransactionalTaskContext context) -> {
                         final TransactionalMap<String, Long> map = context.getMap("map");
                         for (int m = 0; m < h; m++) {
@@ -274,13 +283,15 @@ public class HazelcastResilientTxBench {
                         return null;
                     });
 
-                    if (!successful)
-                        System.out.println(here() + ": retry transaction succeeded ");
+                    // if (!successful)
+                    // System.out.println(here() + ": retry transaction
+                    // succeeded ");
 
                     successful = true;
                     break;
                 } catch (Exception f) {
-                    System.out.println(here() + ": retry transaction due to exception [" + f.getMessage() + "] ");
+                    // System.out.println(here() + ": retry transaction due to
+                    // exception [" + f.getMessage() + "] ");
                     successful = false;
                 } finally {
                     timeNS += System.nanoTime() - start;
@@ -296,18 +307,23 @@ public class HazelcastResilientTxBench {
             // If a new place is added next to this place create producer
             // threads there
             SlaveChange slaveChange = localActivePlaces.nextPlaceChange();
-            if (RESILIENT && producerId == 0 && slaveChange.changed) {
+            if (RESILIENT && producerId == 0 && slaveChange.changed) {                
                 Place nextPlace = slaveChange.newPlace;
+                System.err.println("==> "+ here() + " discovered a place change nextPlace is " + nextPlace  + "  deathTime {"+localThroughput.rightPlaceDeathTimeNS+"} ");
                 if (localThroughput.rightPlaceDeathTimeNS == -1)
-                    throw new STMBenchFailed(here() + " assertion error, did not receive a suicide note ...");
+                    throw new TxBenchFailed(here() + " assertion error, did not receive a suicide note ...");
                 PlaceThroughput oldThroughput = localThroughput.rightPlaceThroughput;
                 long recoveryTime = System.nanoTime() - localThroughput.rightPlaceDeathTimeNS;
+                System.err.println("==> "+ here() + " before shifting the recovery time>>> " + oldThroughput);
                 oldThroughput.shiftElapsedTime(recoveryTime);
+                System.err.println("==> "+ here() + " after shifting the recovery time<<< " + oldThroughput);
+                
                 System.out.println(here() + " Calculated recovery time = " + (recoveryTime / 1e9) + " seconds");
                 startPlaceAsync(RESILIENT, nextPlace, p, t, d, r, u, h, o, g, localThroughput, localActivePlaces, null,
-                        oldThroughput);
+                        oldThroughput.thrds);
             }
         }
+        System.out.println(here().id + "x" + producerId + " completed ...");
     }
 
     private static void printThroughput(int p, int t, int h, int o, PlaceThroughput localThroughput, int iteration) {

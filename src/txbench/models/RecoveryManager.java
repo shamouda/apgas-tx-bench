@@ -1,46 +1,63 @@
 package txbench.models;
 
-import static apgas.Constructs.here;
+import static apgas.Constructs.*;
+
+import java.util.List;
 
 import apgas.Place;
 
 public class RecoveryManager {
 
-    int lastAllocatedPlace = -1;
+    private int lastActivePlace = -1;
     private ActivePlacesLocalObject plh;
+
     public RecoveryManager(ActivePlacesLocalObject plh) {
         this.plh = plh;
+
+        List<Place> activePlaces = plh.getActivePlaces();
+        int size = activePlaces.size();
+        this.lastActivePlace = activePlaces.get(size - 1).id;
     }
-    
-    public synchronized void reportPlaceFailure(Place p) {
-        if (p.id > 0) {
-            System.err.println("Observing failure of " + p + " from " + here());
-            /*
-            List<Place> activePlaces = plh.getActivePlaces();
-            
-            int deadLogicalId = activePlaces.indexOf(p);
-            int size = activePlaces.size();
-            if (lastAllocatedPlace == -1)
-                lastAllocatedPlace = activePlaces.get(size -1).id;
-            
-            if (lastAllocatedPlace == places().size()-1) {
-                System.err.println(here() + "  no spare places available to recover " + p + " ...");
-                java.lang.Runtime.getRuntime().halt(1);
-            }
-            
-            lastAllocatedPlace++;
-            Place spare = places().get(lastAllocatedPlace);
-            
-            finish(() -> {
-                for (Place pl: places()) {
-                    if (p.id == pl.id)
-                        continue;
-                    asyncAt(pl, () -> {
-                        plh.replace(deadLogicalId, spare);
-                    });
+
+    public synchronized void replaceDeadPlace(Place dead) {
+        try {
+            if (dead.id > 0) {
+                System.err.println("Observing failure of " + dead + " from " + here());
+
+                List<Place> activePlaces = plh.getActivePlaces();
+                int deadLogicalId = activePlaces.indexOf(dead);
+                int lastPlace = places().get(places().size() - 1).id;
+
+                System.err.println("last place is " + lastPlace + "   lastActivePlace = " + lastActivePlace);
+                if (lastActivePlace + 1 > lastPlace) {
+                    System.err.println(here() + "  no spare places available to recover " + dead + " ...");
+                    return;
                 }
-            });
-            */
+                Place spare = new Place(lastActivePlace + 1);
+                System.err.println("spare place " + spare + " is replacing place " + dead);
+                lastActivePlace++;
+
+                ActivePlacesLocalObject plhtemp = plh; //do not serialize this
+                at(spare, () -> {
+                    plhtemp.allocate(deadLogicalId);
+                });
+
+                System.err.println("allocating " + spare + " succeeded ...");
+
+                finish(() -> {
+                    for (Place pl : places()) {
+                        if (spare.id == pl.id)
+                            continue;
+                        System.err.println("handshaking with place " + pl);
+                        asyncAt(pl, () -> {
+                            plhtemp.replace(deadLogicalId, spare);
+                        });
+                    }
+                });
+            }
+        } catch (Exception ex) {
+            System.err.println("Recovery of " + dead + " failed with exception [" + ex.getMessage() + "] ");
+            ex.printStackTrace();
         }
     }
 }

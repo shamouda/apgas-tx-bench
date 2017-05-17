@@ -7,7 +7,7 @@ public class PlaceThroughput extends PlaceLocalObject {
     public ProducerThroughput[] thrds;
     public PlaceThroughput rightPlaceThroughput;
     public long rightPlaceDeathTimeNS = -1;
-    public long virtualPlaceId;
+    public long logicalPlaceId;
 
     public boolean started = false;
     public boolean recovered = false;
@@ -19,24 +19,24 @@ public class PlaceThroughput extends PlaceLocalObject {
         
     }
     
-    public PlaceThroughput(long virtualPlaceId, int threads) {
+    public PlaceThroughput(long logicalPlaceId, int threads) {
         this.threads = threads;
-        this.virtualPlaceId = virtualPlaceId;
+        this.logicalPlaceId = logicalPlaceId;
         thrds = new ProducerThroughput[threads];
         for (int i = 0; i < threads; i++) {
-            thrds[i] = new ProducerThroughput( virtualPlaceId, i);
+            thrds[i] = new ProducerThroughput( logicalPlaceId, i);
         }
     }
     
-    public PlaceThroughput(long virtualPlaceId, ProducerThroughput[] thrds) {
+    public PlaceThroughput(long logicalPlaceId, ProducerThroughput[] thrds) {
         this.threads = thrds.length;
-        this.virtualPlaceId = virtualPlaceId;
+        this.logicalPlaceId = logicalPlaceId;
         this.thrds = thrds;
     }
     
     public void reset() {
         for (int i = 0; i < threads; i++) {
-            thrds[i] = new ProducerThroughput( virtualPlaceId, i);
+            thrds[i] = new ProducerThroughput( logicalPlaceId, i);
         }
         rightPlaceThroughput = null;
         rightPlaceDeathTimeNS = -1;
@@ -48,14 +48,14 @@ public class PlaceThroughput extends PlaceLocalObject {
         reducedTxCount = 0;
     }
     
-    public void reinit(PlaceThroughput other) {
-        virtualPlaceId = other.virtualPlaceId;
-        thrds = other.thrds;
+    public void reinit(long logicalPlaceId, ProducerThroughput[] thrds) {
+        this.logicalPlaceId = logicalPlaceId;
+        this.thrds = thrds;
         recovered = true;
     }
     
     public String toString() {
-        String str = "PlaceThroughput[Place"+virtualPlaceId+"] ";
+        String str = "PlaceThroughput[Place"+logicalPlaceId+"] ";
         for (int i = 0; i < threads; i++) {
             str += "{" + thrds[i] + "} ";
         }

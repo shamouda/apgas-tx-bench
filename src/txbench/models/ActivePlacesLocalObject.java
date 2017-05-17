@@ -49,6 +49,7 @@ public class ActivePlacesLocalObject extends PlaceLocalObject {
         activePlaces.remove(logicalId);
         activePlaces.add(logicalId, here());
         nextPlace = activePlaces.get((logicalId+1)%activePlaces.size()); 
+        printActivePlaces();
     }
     
     public synchronized Place nextPlace() {
@@ -65,6 +66,8 @@ public class ActivePlacesLocalObject extends PlaceLocalObject {
     
     public synchronized SlaveChange nextPlaceChange() {
         Place curNextPlace = activePlaces.get((logicalId+1)%activePlaces.size());
+        if (nextPlace == null)
+            System.err.println(here() + "  nextPlace is null");
         if (curNextPlace.id == nextPlace.id) {
             return new SlaveChange(false, null);
         }

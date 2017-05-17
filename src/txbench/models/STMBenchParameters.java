@@ -39,7 +39,7 @@ public class STMBenchParameters implements Serializable {
     }
 
     public void printRunConfigurations() {
-        System.out.println("STMBenchHazelcast starting with the following parameters:");
+        System.out.println("HazelcastResilientTxBench starting with the following parameters:");
         System.out.println(Configuration.APGAS_PLACES + "=" + System.getProperty(Configuration.APGAS_PLACES));
         System.out.println(Configuration.APGAS_THREADS + "=" + System.getProperty(Configuration.APGAS_THREADS));
         System.out.println(Configuration.APGAS_RESILIENT + "=" + System.getProperty(Configuration.APGAS_RESILIENT));
@@ -62,6 +62,5 @@ public class STMBenchParameters implements Serializable {
                 System.out.println("Victims for iteration " + iteration + ": { " + v.toString() + " } ");
             }
         }
-        System.out.println("========>>>");
     }
 }
