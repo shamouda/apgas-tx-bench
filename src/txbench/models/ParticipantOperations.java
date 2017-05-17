@@ -1,5 +1,8 @@
 package txbench.models;
 
+/**
+ * A container for randomly selected keys and operations for a transaction participant
+ * */
 public class ParticipantOperations implements Comparable<ParticipantOperations> {
     
     public static class KeyInfo implements Comparable<KeyInfo> {
@@ -27,7 +30,7 @@ public class ParticipantOperations implements Comparable<ParticipantOperations> 
     }
     
     public String toString() {
-        String str = "memberOperations:" /*+ dest*/ + ":";
+        String str = "memberOperations:" + ":";
         for (KeyInfo k : keys)
             str += "("+k.key+","+k.read+")" ;
         return str;

@@ -4,6 +4,9 @@ import java.io.Serializable;
 import java.util.HashMap;
 import java.util.Iterator;
 
+/**
+ * A container for the victims of a single iteration
+ * */
 public class VictimList implements Serializable {
     private HashMap<Integer,Long> placeKillTimes; // <<place,killTime>>
     
@@ -28,7 +31,7 @@ public class VictimList implements Serializable {
         while (iter.hasNext()) {
             int place = iter.next();
             long time = placeKillTimes.get(place);
-            str += "Place(" +place + "):" + time + " sec,";
+            str += "Place(" +place + ") after" + time + " secs  ";
         }
         return str;
     }

@@ -27,10 +27,10 @@ import txbench.models.OptionsParser;
 import txbench.models.ParticipantOperations;
 import txbench.models.ParticipantOperations.KeyInfo;
 import txbench.models.PlaceThroughput;
-import txbench.models.ProducerThroughput;
+import txbench.models.ThreadThroughput;
 import txbench.models.RecoveryManager;
 import txbench.models.TxBenchFailed;
-import txbench.models.STMBenchParameters;
+import txbench.models.TxBenchParameters;
 import txbench.models.ThroughputCalculator;
 import txbench.models.Utils;
 import txbench.models.VictimList;
@@ -114,7 +114,7 @@ public class HazelcastResilientTxBench {
                 GlobalRuntime.getRuntime().setPlaceFailureHandler(recoveryManager::replaceDeadPlace);
             }
 
-            new STMBenchParameters(p, t, r, u, n, w, d, h, o, g, s, victimProfiles).printRunConfigurations();
+            new TxBenchParameters(p, t, r, u, n, w, d, h, o, g, s, victimProfiles).printRunConfigurations();
 
             long startWarmup = System.currentTimeMillis();
             if (w == -1) {
@@ -174,7 +174,7 @@ public class HazelcastResilientTxBench {
      */
     private static void startPlaceAsync(boolean RESILIENT, Place pl, int p, int t, long d, long r, float u, int h,
             int o, int g, PlaceThroughput localThroughput, ActivePlacesLocalObject localActivePlaces,
-            VictimList victims, ProducerThroughput[] oldThroughput) {
+            VictimList victims, ThreadThroughput[] oldThroughput) {
 
         asyncAt(pl, () -> {
             int logicalPlaceId = localActivePlaces.getLogicalId();
@@ -211,14 +211,14 @@ public class HazelcastResilientTxBench {
                         PlaceThroughput myThroughput = localThroughput;
                         myThroughput.setElapsedTime(System.nanoTime() - startedNS);
 
-                        final ProducerThroughput[] victimThreads = myThroughput.thrds;
+                        final ThreadThroughput[] victimThreads = myThroughput.thrds;
                         final long victimLogicalId = myThroughput.logicalPlaceId;
                         Place victim = here();
                         at(prev, () -> {
-                            localThroughput.rightPlaceThroughput = new PlaceThroughput(victimLogicalId, victimThreads);
-                            localThroughput.rightPlaceDeathTimeNS = System.nanoTime();
+                            localThroughput.nextPlaceThroughput = new PlaceThroughput(victimLogicalId, victimThreads);
+                            localThroughput.nextPlaceDeathTimeNS = System.nanoTime();
                             System.out.println(here() + " Received suicide note from " + victim + " throughputValues: "
-                                    + localThroughput.rightPlaceThroughput);
+                                    + localThroughput.nextPlaceThroughput);
                         });
 
                         System.out.println(here() + " Good bye ...");
@@ -248,7 +248,7 @@ public class HazelcastResilientTxBench {
         HazelcastInstance hz = Hazelcast.getHazelcastInstanceByName("apgas");
         int logicalPlaceId = localActivePlaces.getLogicalId();
         Random rand = new Random((here().id + 1) * producerId);
-        ProducerThroughput myThroughput = localThroughput.thrds[producerId];
+        ThreadThroughput myThroughput = localThroughput.thrds[producerId];
         long timeNS = myThroughput.elapsedTimeNS;
 
         TransactionOptions options = new TransactionOptions().setTransactionType(TransactionType.TWO_PHASE)
@@ -313,10 +313,10 @@ public class HazelcastResilientTxBench {
             if (RESILIENT && producerId == 0 && slaveChange.changed) {
                 Place nextPlace = slaveChange.newPlace;
                 System.out.println(here() + " discovered a place change nextPlace is " + nextPlace);
-                if (localThroughput.rightPlaceDeathTimeNS == -1)
+                if (localThroughput.nextPlaceDeathTimeNS == -1)
                     throw new TxBenchFailed(here() + " assertion error, did not receive a suicide note ...");
-                PlaceThroughput oldThroughput = localThroughput.rightPlaceThroughput;
-                long recoveryTime = System.nanoTime() - localThroughput.rightPlaceDeathTimeNS;
+                PlaceThroughput oldThroughput = localThroughput.nextPlaceThroughput;
+                long recoveryTime = System.nanoTime() - localThroughput.nextPlaceDeathTimeNS;
 
                 oldThroughput.shiftElapsedTime(recoveryTime);
 

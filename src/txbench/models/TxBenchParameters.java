@@ -6,7 +6,7 @@ import java.util.Iterator;
 
 import apgas.Configuration;
 
-public class STMBenchParameters implements Serializable {
+public class TxBenchParameters implements Serializable {
 
     private static final long serialVersionUID = 43243254353461L;
     int p; // producing places
@@ -22,7 +22,7 @@ public class STMBenchParameters implements Serializable {
     int s; // spare places
     HashMap<Integer, VictimList> victimProfiles; // victims configurations
 
-    public STMBenchParameters(int p, int t, long r, float u, int n, long w, long d, int h, int o, int g, int s,
+    public TxBenchParameters(int p, int t, long r, float u, int n, long w, long d, int h, int o, int g, int s,
             HashMap<Integer, VictimList> victimProfiles) {
         this.r = r;
         this.u = u;
@@ -50,7 +50,7 @@ public class STMBenchParameters implements Serializable {
         System.out.println("t=" + t);
         System.out.println("w=" + w);
         System.out.println("d=" + d);
-        System.out.println("h=" + h + "   !!! At least one place is local !!!!   ");
+        System.out.println("h=" + h);
         System.out.println("o=" + o);
         System.out.println("g=" + g);
         System.out.println("s=" + s);
