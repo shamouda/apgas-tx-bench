@@ -8,6 +8,9 @@ import apgas.Place;
 
 public class RecoveryManager {
 
+    public final static boolean DEBUG = System.getProperty("txbench.debug") != null
+            && System.getProperty("txbench.debug").equals("true");
+    
     private int lastActivePlace = -1;
     private ActivePlacesLocalObject plh;
 
@@ -28,7 +31,6 @@ public class RecoveryManager {
                 int deadLogicalId = activePlaces.indexOf(dead);
                 int lastPlace = places().get(places().size() - 1).id;
 
-                System.err.println("last place is " + lastPlace + "   lastActivePlace = " + lastActivePlace);
                 if (lastActivePlace + 1 > lastPlace) {
                     System.err.println(here() + "  no spare places available to recover " + dead + " ...");
                     return;
@@ -37,7 +39,7 @@ public class RecoveryManager {
                 System.err.println("spare place " + spare + " is replacing place " + dead);
                 lastActivePlace++;
 
-                ActivePlacesLocalObject plhtemp = plh; //do not serialize this
+                ActivePlacesLocalObject plhtemp = plh; // do not serialize this
                 at(spare, () -> {
                     plhtemp.allocate(deadLogicalId);
                 });
@@ -48,7 +50,8 @@ public class RecoveryManager {
                     for (Place pl : places()) {
                         if (spare.id == pl.id)
                             continue;
-                        System.err.println("handshaking with place " + pl);
+                        if (DEBUG)
+                            System.err.println("handshaking with place " + pl);
                         asyncAt(pl, () -> {
                             plhtemp.replace(deadLogicalId, spare);
                         });
