@@ -48,11 +48,11 @@ import txbench.models.VictimList;
 public class HazelcastResilientTxBench {
     public final static boolean DEBUG = System.getProperty("txbench.debug") != null
             && System.getProperty("txbench.debug").equals("true");
-
+    public final static boolean RESILIENT = System.getProperty(Configuration.APGAS_RESILIENT) != null
+            && System.getProperty(Configuration.APGAS_RESILIENT).equals("true");
+    
     public static void main(String[] args) {
         try {
-            boolean RESILIENT = System.getProperty(Configuration.APGAS_RESILIENT) != null
-                    && System.getProperty(Configuration.APGAS_RESILIENT).equals("true");
             OptionsParser opts = new OptionsParser(args);
 
             // s= spare places
@@ -121,7 +121,7 @@ public class HazelcastResilientTxBench {
                 System.out.println("no warmpup");
             } else {
                 System.out.println("warmup started");
-                runIteration(RESILIENT, p, t, w, r, u, h, o, g, localThroughput, localActivePlaces, null, null);
+                runIteration(p, t, w, r, u, h, o, g, localThroughput, localActivePlaces, null, null);
                 resetStatistics(p, localThroughput);
                 System.out.println("warmup completed, warmup elapsed time ["
                         + (System.currentTimeMillis() - startWarmup) + "]  ms \n");
@@ -132,7 +132,7 @@ public class HazelcastResilientTxBench {
                 VictimList iterVictims = victimProfiles.get(iter);
 
                 System.out.println("iteration:" + iter + " started");
-                runIteration(RESILIENT, p, t, d, r, u, h, o, g, localThroughput, localActivePlaces, iterVictims, null);
+                runIteration(p, t, d, r, u, h, o, g, localThroughput, localActivePlaces, iterVictims, null);
                 System.out.println("iteration:" + iter + " completed, iteration elapsedTime ["
                         + (System.currentTimeMillis() - startIter) + "]  ms");
 
@@ -151,14 +151,14 @@ public class HazelcastResilientTxBench {
     /**
      * Executes a warm up or a benchmarking iteration
      **/
-    public static void runIteration(boolean RESILIENT, int p, int t, long d, long r, float u, int h, int o, int g,
+    public static void runIteration(int p, int t, long d, long r, float u, int h, int o, int g,
             PlaceThroughput localThroughput, ActivePlacesLocalObject localActivePlaces, VictimList victims,
             PlaceThroughput recoveryThroughput) {
         try {
             finish(() -> {
                 for (int i = 0; i < p; i++) {
                     Place pl = places().get(i);
-                    startPlaceAsync(RESILIENT, pl, p, t, d, r, u, h, o, g, localThroughput, localActivePlaces, victims,
+                    startPlaceAsync(pl, p, t, d, r, u, h, o, g, localThroughput, localActivePlaces, victims,
                             null);
                 }
             });
@@ -172,7 +172,7 @@ public class HazelcastResilientTxBench {
      * Creates producer threads at a given place 'pl'. Also creates a suicide
      * activity to kill this place at the proper time if it is a victim.
      */
-    private static void startPlaceAsync(boolean RESILIENT, Place pl, int p, int t, long d, long r, float u, int h,
+    private static void startPlaceAsync(Place pl, int p, int t, long d, long r, float u, int h,
             int o, int g, PlaceThroughput localThroughput, ActivePlacesLocalObject localActivePlaces,
             VictimList victims, ThreadThroughput[] oldThroughput) {
 
@@ -189,7 +189,7 @@ public class HazelcastResilientTxBench {
             for (int thrd = 1; thrd <= t; thrd++) {
                 final int producerId = thrd - 1;
                 async(() -> {
-                    produce(RESILIENT, producerId, p, t, d, r, u, h, o, g, localThroughput, localActivePlaces);
+                    produce(producerId, p, t, d, r, u, h, o, g, localThroughput, localActivePlaces);
                 });
             }
 
@@ -238,7 +238,7 @@ public class HazelcastResilientTxBench {
      * first producer in the current place activates the added place by starting
      * producer threads there.
      */
-    public static void produce(boolean RESILIENT, int producerId, int p, int t, long d, long r, float u, int h, int o,
+    public static void produce(int producerId, int p, int t, long d, long r, float u, int h, int o,
             int g, PlaceThroughput localThroughput, ActivePlacesLocalObject localActivePlaces) throws TxBenchFailed {
         localThroughput.started = true;
         if (localThroughput.recovered) {
@@ -321,7 +321,7 @@ public class HazelcastResilientTxBench {
                 oldThroughput.shiftElapsedTime(recoveryTime);
 
                 System.out.println(here() + " Calculated recovery time = " + (recoveryTime / 1e9) + " seconds");
-                startPlaceAsync(RESILIENT, nextPlace, p, t, d, r, u, h, o, g, localThroughput, localActivePlaces, null,
+                startPlaceAsync(nextPlace, p, t, d, r, u, h, o, g, localThroughput, localActivePlaces, null,
                         oldThroughput.thrds);
             }
         }
