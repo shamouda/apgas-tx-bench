@@ -121,7 +121,7 @@ public class HazelcastResilientTxBench {
                 System.out.println("no warmup");
             } else {
                 System.out.println("warmup started");
-                runIteration(p, t, w, r, u, h, o, g, localThroughput, localActivePlaces, null, null);
+                runIteration(p, t, w, r, u, h, o, g, localThroughput, localActivePlaces, null);
                 resetStatistics(p, localThroughput);
                 System.out.println("warmup completed, warmup elapsed time ["
                         + (System.currentTimeMillis() - startWarmup) + "]  ms \n");
@@ -132,7 +132,7 @@ public class HazelcastResilientTxBench {
                 VictimList iterVictims = victimProfiles.get(iter);
 
                 System.out.println("iteration:" + iter + " started");
-                runIteration(p, t, d, r, u, h, o, g, localThroughput, localActivePlaces, iterVictims, null);
+                runIteration(p, t, d, r, u, h, o, g, localThroughput, localActivePlaces, iterVictims);
                 System.out.println("iteration:" + iter + " completed, iteration elapsedTime ["
                         + (System.currentTimeMillis() - startIter) + "]  ms");
 
@@ -152,8 +152,7 @@ public class HazelcastResilientTxBench {
      * Executes a warm up or a benchmarking iteration
      **/
     public static void runIteration(int p, int t, long d, long r, float u, int h, int o, int g,
-            PlaceThroughput localThroughput, ActivePlacesLocalObject localActivePlaces, VictimList victims,
-            PlaceThroughput recoveryThroughput) {
+            PlaceThroughput localThroughput, ActivePlacesLocalObject localActivePlaces, VictimList victims) {
         try {
             finish(() -> {
                 for (int i = 0; i < p; i++) {
@@ -242,7 +241,7 @@ public class HazelcastResilientTxBench {
             int g, PlaceThroughput localThroughput, ActivePlacesLocalObject localActivePlaces) throws TxBenchFailed {
         localThroughput.started = true;
         if (localThroughput.recovered) {
-            System.out.println(here() + " added place started to produce transactions " + localThroughput);
+            System.out.println(here() + " added place started to produce transactions ");
         }
 
         HazelcastInstance hz = Hazelcast.getHazelcastInstanceByName("apgas");
