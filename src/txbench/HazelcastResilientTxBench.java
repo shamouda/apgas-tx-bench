@@ -118,7 +118,7 @@ public class HazelcastResilientTxBench {
 
             long startWarmup = System.currentTimeMillis();
             if (w == -1) {
-                System.out.println("no warmpup");
+                System.out.println("no warmup");
             } else {
                 System.out.println("warmup started");
                 runIteration(p, t, w, r, u, h, o, g, localThroughput, localActivePlaces, null, null);
