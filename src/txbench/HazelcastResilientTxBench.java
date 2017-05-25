@@ -52,11 +52,19 @@ public class HazelcastResilientTxBench {
             && System.getProperty(Configuration.APGAS_RESILIENT).equals("true");
     
     public static void main(String[] args) {
+        if (System.getProperty(Configuration.APGAS_PLACES) == null) {
+            System.err.println("FATAL: You must set the number of places -Dapgas.places=?");
+            return;
+        }
+        else
+            System.out.println("Configuration.APGAS_PLACES = " + System.getProperty(Configuration.APGAS_PLACES) );
+            
+        
         try {
             OptionsParser opts = new OptionsParser(args);
 
             // s= spare places
-            int s = opts.get("s", 2);
+            int s = opts.get("s", 0);
 
             // p= number of places creating transactions
             int p = opts.get("p", places().size() - s);
@@ -71,7 +79,8 @@ public class HazelcastResilientTxBench {
             int n = opts.get("n", 5);
 
             // t= number of threads creating transactions per place
-            int t = opts.get("t", Integer.parseInt(System.getProperty(Configuration.APGAS_THREADS)));
+            String apgasThreads = System.getProperty(Configuration.APGAS_THREADS);
+            int t = opts.get("t", apgasThreads== null? 1 : Integer.parseInt(apgasThreads));
 
             // w= warm up duration in milliseconds
             long w = opts.get("w", 5000L);
