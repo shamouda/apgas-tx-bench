@@ -44,6 +44,8 @@ import txbench.models.VictimList;
  * 
  * We report the throughput in terms of operations per milliseconds. An
  * operation is either a read operation (map.get) or a write operation (map.put)
+ * 
+ * Test command: java -cp .:apgas.jar:hazelcast-3.7.1.jar:kryo.jar:objenesis-2.1.jar:minlog-1.3.0.jar -Dapgas.places=5 -Dapgas.threads=2 txbench.HazelcastResilientTxBench
  */
 public class HazelcastResilientTxBench {
     public final static boolean DEBUG = System.getProperty("txbench.debug") != null
@@ -80,13 +82,13 @@ public class HazelcastResilientTxBench {
 
             // t= number of threads creating transactions per place
             String apgasThreads = System.getProperty(Configuration.APGAS_THREADS);
-            int t = opts.get("t", apgasThreads== null? 1 : Integer.parseInt(apgasThreads));
+            int t = opts.get("t", 1 /*apgasThreads== null? 1 : Integer.parseInt(apgasThreads)*/);
 
             // w= warm up duration in milliseconds
             long w = opts.get("w", 5000L);
 
             // d= benchmarking iteration duration in milliseconds
-            long d = opts.get("d", 10000L);
+            long d = opts.get("d", 5000L);
 
             // h= number of transaction participants
             int h = opts.get("h", 2);
@@ -255,7 +257,8 @@ public class HazelcastResilientTxBench {
 
         HazelcastInstance hz = Hazelcast.getHazelcastInstanceByName("apgas");
         int logicalPlaceId = localActivePlaces.getLogicalId();
-        Random rand = new Random((here().id + 1) * producerId);
+        Random rand = new Random((here().id + 1) * t + producerId);
+        
         ThreadThroughput myThroughput = localThroughput.thrds[producerId];
         long timeNS = myThroughput.elapsedTimeNS;
 
